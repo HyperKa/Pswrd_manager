@@ -1,0 +1,50 @@
+@startuml
+
+actor User as "Пользователь"
+participant Browser as "Браузер (JS)"
+participant "Web Crypto" as Crypto
+participant "Spring Boot" as Server
+participant "PepperService" as Pepper
+participant "DB" as Database
+
+User -> Browser: Вводит:\n- username\n- masterPassword
+activate Browser
+
+Browser -> Crypto: Генерировать clientSalt
+activate Crypto
+Crypto --> Browser: clientSalt
+deactivate Crypto
+
+Browser -> Crypto: PBKDF2(masterPassword + clientSalt)
+activate Crypto
+Crypto --> Browser: encryptionKey
+deactivate Crypto
+
+Browser -> Crypto: AES-256-GCM(encryptionKey, пустой vault)
+activate Crypto
+Crypto --> Browser: encryptedVault
+deactivate Crypto
+
+Browser -> Server: POST /api/auth/register\n{username, masterPassword, encryptedVault}
+activate Server
+
+Server -> Server: Генерировать serverSalt
+Server -> Pepper: Получить serverPepper из .env
+activate Pepper
+Pepper --> Server: serverPepper
+deactivate Pepper
+
+Server -> Server: combine = masterPassword + serverSalt + serverPepper
+Server -> Server: authHash = BCrypt(combine)
+
+Server -> Database: INSERT users\n(username, serverSalt, authHash, encryptedVault)
+activate Database
+Database --> Server: OK
+deactivate Database
+
+Server --> Browser: 201 Created
+deactivate Server
+
+Browser --> User: "Регистрация успешна"
+deactivate Browser
+@enduml

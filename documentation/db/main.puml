@@ -1,0 +1,43 @@
+@startuml
+!theme plain
+left to right direction
+
+entity "users" as users {
+  + id: UUID [PK]
+  --
+  username: VARCHAR(255) [UK]
+  server_salt: BYTEA
+  auth_hash: VARCHAR(255)
+  encrypted_vault: TEXT
+  created_at: TIMESTAMP
+  last_login: TIMESTAMP
+  failed_attempts: INTEGER
+  locked_until: TIMESTAMP
+}
+
+entity "audit_logs" as audit {
+  + id: BIGSERIAL [PK]
+  --
+  user_id: UUID [FK]
+  action: VARCHAR(50)
+  ip_address: INET
+  user_agent: TEXT
+  timestamp: TIMESTAMP
+  success: BOOLEAN
+}
+
+entity "sessions" as sessions {
+  + id: UUID [PK]
+  --
+  user_id: UUID [FK]
+  refresh_token: VARCHAR(512)
+  expires_at: TIMESTAMP
+  created_at: TIMESTAMP
+}
+
+users ||--o{ audit : "has"
+users ||--o{ sessions : "has"
+
+note top of users : "Хранит только зашифрованные данные\nи соль для аутентификации"
+note bottom of audit : "Для обнаружения\nподозрительной активности"
+@enduml
