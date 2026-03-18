@@ -1,0 +1,90 @@
+@startuml
+skinparam classAttributeIconSize 0
+skinparam shadowing false
+
+package "Desktop Client (JavaFX)" #E3F2FD {
+    class App {
+        +start() : Инициализация JavaFX и запуск login-view
+        +setRoot(fxml) : Динамическая смена корневого узла сцены (навигация)
+    }
+
+    class LoginController {
+        +onLoginButtonClick() : Считывает поля, вызывает AuthService, при успехе вызывает deriveKey
+        +onOpenRegister() : Переключает экран на регистрацию через App.setRoot
+    }
+
+    class MainController {
+        -vaultKey : SecretKey
+        +initData(AuthResponse, SecretKey) : Получает сессию и ключ дешифровки из LoginController
+        +refreshVault() : Запрашивает шифр из БД и вызывает расшифровку через CryptoService
+        -saveVaultToServer() : Шифрует текущий список паролей и отправляет POST запрос
+    }
+
+    class VaultService {
+        +loadVault(token, key) : GET запрос к бэкенду, парсинг VaultDto и дешифровка AES-GCM
+        +save(entries, token, key) : Сериализация списка в JSON, AES-шифрование и POST запрос
+    }
+
+    class DesktopCryptoService {
+        +deriveKey(pass, salt) : PBKDF2 превращает мастер-пароль в 256-битный ключ AES
+        +encrypt(data, key) : Генерирует IV, шифрует AES-GCM, возвращает склейку IV+Data в Base64
+        +decrypt(base64, key) : Разрезает строку, извлекает IV и расшифровывает массив байтов
+    }
+
+    class DesktopAuthService {
+        +login(user, pass) : Формирует LoginRequest JSON и шлет POST на /api/auth/login
+    }
+}
+
+package "Shared DTOs" #FFF3E0 {
+    class LoginRequest {
+        username, masterPassword
+    }
+    class AuthResponse {
+        token, username, role, expiresIn
+    }
+    class VaultDto {
+        encryptedVault : String
+    }
+}
+
+package "Backend Server (Spring Boot)" #E8F5E9 {
+    class AuthController {
+        +login(LoginRequest) : Проверяет хеш, при успехе возвращает сгенерированный JWT
+        +getVault(Principal) : Возвращает содержимое колонки encrypted_vault из БД
+        +updateVault(VaultDto) : Записывает новую зашифрованную строку в БД пользователя
+    }
+
+    class BackendAuthService {
+        +authenticate(user, pass) : Ищет юзера в Repo и сравнивает хеши через CryptoService
+    }
+
+    class BackendCryptoService {
+        +hashPassword(pass, salt) : SHA-256 (пароль+соль+перец) -> BCrypt
+        +checkPassword(raw, salt, hash) : Проверяет соответствие пароля сохраненному хешу
+    }
+
+    class JwtService {
+        +generateToken(user, role) : Подписывает Payload (sub, role, exp) секретным ключом
+        +validateToken(token) : Проверяет подпись токена ключом из .env
+    }
+
+    database "PostgreSQL" {
+        entity "users (Table)" as UserTable {
+            id, username, salt, auth_hash, encrypted_vault
+        }
+    }
+}
+
+' Описание взаимодействий (Связи)
+LoginController --> DesktopAuthService : "Запрос входа"
+MainController --> VaultService : "Синхронизация"
+VaultService --> DesktopCryptoService : "Шифрование данных"
+DesktopAuthService ..> AuthController : "HTTP REST (JSON)"
+VaultService ..> AuthController : "HTTP REST (JSON)"
+AuthController --> BackendAuthService : "Бизнес-логика"
+BackendAuthService --> BackendCryptoService : "Крипто-проверка"
+BackendAuthService --> JwtService : "Работа с токенами"
+BackendAuthService --> UserTable : "SQL операции"
+
+@enduml

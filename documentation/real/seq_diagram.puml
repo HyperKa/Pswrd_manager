@@ -1,0 +1,48 @@
+@startuml
+actor User
+participant "Desktop UI" as UI
+participant "Desktop Crypto" as DC
+participant "Desktop Auth/Vault Service" as DS
+participant "Backend Controller" as BE
+participant "Backend Service" as BS
+participant "Backend Crypto" as BC
+database "PostgreSQL" as DB
+
+User -> UI : Вводит логин/пароль
+UI -> DS : login(username, password)
+
+note over DS, BE : Запрос 1: Аутентификация
+DS -> BE : POST /api/auth/login (JSON)
+BE -> BS : authenticate(username, rawPassword)
+BS -> DB : findByUsername(username)
+DB -> BS : User Entity (salt, authHash)
+
+BS -> BC : checkPassword(rawPassword, salt, authHash)
+note right BC : SHA-256(Pass+Salt+Pepper) \n-> BCrypt.matches()
+BC -> BS : password valid (true)
+
+BS -> BE : User authenticated
+BE -> BE : Generate JWT Token
+BE -> DS : 200 OK (JWT, Role, etc.)
+
+note over UI, DC : Локальная работа на клиенте
+DS -> UI : AuthResponse success
+UI -> DC : deriveKey(password, salt)
+note right DC : PBKDF2(password, salt) \nКлюч НЕ покидает клиент!
+DC -> UI : SecretKey (vaultKey)
+
+note over UI, BE : Запрос 2: Синхронизация данных
+UI -> DS : loadVault(token, vaultKey)
+DS -> BE : GET /api/auth/vault (Header: Bearer JWT)
+BE -> DB : Select encrypted_vault FROM users
+DB -> BE : "zx+f3Bolte..." (Base64 AES string)
+BE -> DS : 200 OK (VaultDto)
+
+DS -> DC : decrypt(base64, vaultKey)
+note right DC : Cipher AES-GCM decrypt
+DC -> DS : JSON String ([{"site":"Google"...}])
+DS -> DS : Jackson.readValue()
+DS -> UI : List<VaultEntry>
+
+UI -> User : Показывает заполненную таблицу
+@enduml

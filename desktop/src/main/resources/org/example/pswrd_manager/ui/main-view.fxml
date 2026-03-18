@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+
+<VBox spacing="10" xmlns="http://javafx.com/javafx" xmlns:fx="http://javafx.com/fxml"
+      fx:controller="org.example.pswrd_manager.ui.MainController" prefWidth="600" prefHeight="400">
+
+    <Label text="Ваши пароли" style="-fx-font-size: 20px; -fx-padding: 10;"/>
+
+    <TableView fx:id="passwordTable" VBox.vgrow="ALWAYS">
+        <columns>
+            <TableColumn fx:id="siteColumn" text="Сайт" prefWidth="150"/>
+            <TableColumn fx:id="userColumn" text="Логин" prefWidth="150"/>
+            <TableColumn fx:id="passwordColumn" text="Пароль" prefWidth="150"/>
+        </columns>
+    </TableView>
+
+    <HBox spacing="10" style="-fx-padding: 10;">
+        <Button text="Добавить пароль" onAction="#addNewPassword"/>
+        <Button text="Обновить список" onAction="#refreshVault"/>
+    </HBox>
+</VBox>
